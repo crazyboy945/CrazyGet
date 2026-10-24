@@ -178,7 +178,8 @@ function updateRow(t, refs, selected) {
   const active = t.status === "下载中" || t.status === "获取元数据";
   let fillCls = "prog-fill";
   if (t.status === "已完成") fillCls += " done";
-  else if (!active && t.status !== "失败") fillCls += " stalled";
+  else if (t.status === "失败") fillCls += " error";
+  else if (!active) fillCls += " stalled"; // 暂停 / 等待中
 
   const pct = t.size > 0 ? Math.min(100, (t.completed / t.size) * 100) : -1;
   if (pct >= 0) {
@@ -189,8 +190,14 @@ function updateRow(t, refs, selected) {
     refs.fill.className = fillCls;
     refs.fill.style.width = "100%";
     refs.pct.textContent = "100%";
-  } else {
+  } else if (active) {
+    // 仅进行中的任务播放不确定进度动画（大小未知）
     refs.fill.className = fillCls + " indeterminate";
+    refs.pct.textContent = "—";
+  } else {
+    // 失败 / 暂停 / 等待中且大小未知：静止空轨道，不做动画
+    refs.fill.className = fillCls;
+    refs.fill.style.width = "0%";
     refs.pct.textContent = "—";
   }
 
