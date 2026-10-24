@@ -7,6 +7,9 @@ CrazyGet.exe~
 *.log
 *.tmp
 
+# 测试下载数据
+testdata/
+
 # 系统文件
 Thumbs.db
 desktop.ini

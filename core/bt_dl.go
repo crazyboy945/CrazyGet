@@ -118,6 +118,7 @@ func (m *Manager) runBT(ctx context.Context, t *Task) error {
 
 	m.mu.Lock()
 	t.MetadataOK = true
+	t.Status = StatusRunning // 元数据就绪，状态从“获取元数据”切回“下载中”
 	if t.Name == "" || t.Name == "(解析中)" {
 		t.Name = sanitizeName(tt.Name())
 	}
