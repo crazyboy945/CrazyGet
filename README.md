@@ -25,6 +25,10 @@ CrazyGet 是一个简洁美观的多协议下载器，参考 qBittorrent 的布�
   - 右键菜单、双击打开文件夹、Ctrl+V 粘贴链接、Delete 删除
 - **深/浅双主题**：Material 配色，设置中一键切换
 
+## 下载安装包
+
+前往 [Releases 页面](https://github.com/crazyboy945/CrazyGet/releases/latest) 下载 `CrazyGet-x.x.x-x64.exe`，单文件免安装，双击即用（Windows 10/11 x64）。
+
 ## 使用说明
 
 1. 点击「＋ 添加链接」（快捷键 **Alt+A**，或直接 Ctrl+V 粘贴），支持每行多个链接批量添加
