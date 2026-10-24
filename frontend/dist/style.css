@@ -168,6 +168,7 @@ body {
   transition: width .3s ease;
 }
 .prog-fill.stalled { background: var(--amber); }
+.prog-fill.error { background: #f26d6d; }
 .prog-fill.done { background: #35c983; }
 .prog-fill.indeterminate {
   width: 30% !important;
