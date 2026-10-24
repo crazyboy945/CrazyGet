@@ -128,7 +128,90 @@ function updateFilterCounts() {
   $("c-error").textContent = buckets.error;
 }
 
-/* ================= 表格渲染 ================= */
+/* ================= 表格渲染（行级 diff：保留行 DOM，动画/过渡不因轮询重建而抖动） ================= */
+const rowMap = new Map(); // id -> { tr, refs }
+
+function makeRow(t) {
+  const tr = document.createElement("tr");
+  tr.dataset.id = t.id;
+  tr.innerHTML = `
+    <td><div class="t-name-cell"><span class="kind-badge"></span><span class="t-name-text"></span></div></td>
+    <td class="num-cell t-size"></td>
+    <td><div class="prog-cell"><div class="prog-track"><div class="prog-fill"></div></div><span class="prog-pct"></span></div></td>
+    <td><span class="st-badge"></span></td>
+    <td class="num-cell t-speed"></td>
+    <td class="num-cell t-eta"></td>
+    <td class="num-cell dim t-time"></td>`;
+  const refs = {
+    nameCell: tr.querySelector("td"),
+    kind: tr.querySelector(".kind-badge"),
+    name: tr.querySelector(".t-name-text"),
+    size: tr.querySelector(".t-size"),
+    fill: tr.querySelector(".prog-fill"),
+    pct: tr.querySelector(".prog-pct"),
+    badge: tr.querySelector(".st-badge"),
+    speed: tr.querySelector(".t-speed"),
+    eta: tr.querySelector(".t-eta"),
+    time: tr.querySelector(".t-time"),
+  };
+  const entry = { tr, refs };
+  rowMap.set(t.id, entry);
+  return entry;
+}
+
+function updateRow(t, refs, selected) {
+  const tr = refs.nameCell.closest("tr");
+  tr.classList.toggle("selected", selected);
+
+  const kind = KIND_LABEL[t.kind] || String(t.kind).toUpperCase();
+  const kindCls = "kind-" + (t.kind === "bt" ? "bt" : t.kind === "ftp" ? "ftp" : "http");
+  refs.kind.textContent = kind;
+  refs.kind.className = "kind-badge " + kindCls;
+  refs.name.textContent = t.name;
+  refs.nameCell.title = t.name;
+
+  const unknown = t.size < 0;
+  refs.size.textContent = unknown
+    ? (t.completed > 0 ? fmtBytes(t.completed) : "未知")
+    : `${fmtBytes(t.completed)} / ${fmtBytes(t.size)}`;
+
+  const active = t.status === "下载中" || t.status === "获取元数据";
+  let fillCls = "prog-fill";
+  if (t.status === "已完成") fillCls += " done";
+  else if (!active && t.status !== "失败") fillCls += " stalled";
+
+  const pct = t.size > 0 ? Math.min(100, (t.completed / t.size) * 100) : -1;
+  if (pct >= 0) {
+    refs.fill.className = fillCls;
+    refs.fill.style.width = pct + "%";
+    refs.pct.textContent = pct.toFixed(1) + "%";
+  } else if (t.status === "已完成") {
+    refs.fill.className = fillCls;
+    refs.fill.style.width = "100%";
+    refs.pct.textContent = "100%";
+  } else {
+    refs.fill.className = fillCls + " indeterminate";
+    refs.pct.textContent = "—";
+  }
+
+  if (t.status === "失败" && t.errMsg) {
+    refs.badge.className = "st-badge error";
+    refs.badge.textContent = "失败";
+    refs.badge.title = t.errMsg;
+  } else {
+    refs.badge.className = "st-badge " + badgeClass(t.status);
+    refs.badge.textContent = t.status;
+    refs.badge.title = "";
+  }
+
+  // 活动任务恒显速度（含短暂 0），避免速度列间歇性消失
+  refs.speed.innerHTML = active
+    ? `<span class="speed-on">${fmtBytes(Math.max(t.speed || 0, 0))}/s</span>`
+    : (t.speed > 0 ? `<span class="speed-on">${fmtBytes(t.speed)}/s</span>` : `<span class="dim">—</span>`);
+  refs.eta.textContent = active ? fmtEta(etaSeconds(t)) : "—";
+  refs.time.textContent = fmtTime(t.createdAt);
+}
+
 function renderTable() {
   const list = filteredTasks();
   const tbody = $("tbody");
@@ -142,50 +225,19 @@ function renderTable() {
 
   if (selectedID && !tasks.some((t) => t.id === selectedID)) selectedID = null;
 
-  tbody.innerHTML = list.map((t) => {
-    const pct = t.size > 0 ? Math.min(100, (t.completed / t.size) * 100) : -1;
-    const unknown = t.size < 0;
-    const sel = t.id === selectedID ? ' class="selected"' : "";
-    const kind = KIND_LABEL[t.kind] || String(t.kind).toUpperCase();
-    const kindCls = "kind-" + (t.kind === "bt" ? "bt" : t.kind === "ftp" ? "ftp" : "http");
-
-    const sizeTxt = unknown
-      ? (t.completed > 0 ? fmtBytes(t.completed) : "未知")
-      : `${fmtBytes(t.completed)} / ${fmtBytes(t.size)}`;
-
-    let badge = t.status;
-    let badgeCls = badgeClass(t.status);
-    const active = t.status === "下载中" || t.status === "获取元数据";
-
-    let fillCls = "prog-fill";
-    if (t.status === "已完成") fillCls += " done";
-    else if (!active && t.status !== "失败") fillCls += " stalled";
-
-    const pctHtml = pct >= 0
-      ? `<div class="prog-cell"><div class="prog-track"><div class="${fillCls}" style="width:${pct}%"></div></div><span class="prog-pct">${pct.toFixed(1)}%</span></div>`
-      : (t.status === "已完成"
-        ? `<div class="prog-cell"><span class="prog-pct" style="width:auto">100%</span></div>`
-        : `<div class="prog-cell"><div class="prog-track"><div class="${fillCls} indeterminate" style="width:30%"></div></div><span class="prog-pct">—</span></div>`);
-
-    const badgeHtml = (t.status === "失败" && t.errMsg)
-      ? `<span class="st-badge error" title="${esc(t.errMsg)}">失败</span>`
-      : `<span class="st-badge ${badgeCls}">${esc(t.status)}</span>`;
-
-    // 活动任务恒显速度（含短暂 0），避免速度列间歇性消失
-    const speedHtml = active
-      ? `<span class="speed-on">${fmtBytes(Math.max(t.speed || 0, 0))}/s</span>`
-      : (t.speed > 0 ? `<span class="speed-on">${fmtBytes(t.speed)}/s</span>` : `<span class="dim">—</span>`);
-
-    return `<tr data-id="${t.id}"${sel}>
-      <td title="${esc(t.name)}"><div class="t-name-cell"><span class="kind-badge ${kindCls}">${kind}</span><span class="t-name-text">${esc(t.name)}</span></div></td>
-      <td class="num-cell">${sizeTxt}</td>
-      <td>${pctHtml}</td>
-      <td>${badgeHtml}</td>
-      <td class="num-cell">${speedHtml}</td>
-      <td class="num-cell">${active ? fmtEta(etaSeconds(t)) : "—"}</td>
-      <td class="num-cell dim">${fmtTime(t.createdAt)}</td>
-    </tr>`;
-  }).join("");
+  // 移除已不存在的行
+  for (const [id, entry] of Array.from(rowMap)) {
+    if (!list.some((t) => t.id === id)) {
+      entry.tr.remove();
+      rowMap.delete(id);
+    }
+  }
+  // 更新 + 按目标顺序排列（appendChild 对已在末尾的节点是零操作，动画不重置）
+  for (const t of list) {
+    const entry = rowMap.get(t.id) || makeRow(t);
+    updateRow(t, entry.refs, t.id === selectedID);
+    if (tbody.lastElementChild !== entry.tr) tbody.appendChild(entry.tr);
+  }
 }
 
 function badgeClass(status) {
@@ -549,4 +601,14 @@ function initClipboardEvents() {
   } catch (e) { /* 默认深色 */ }
   await poll();
   setInterval(poll, 400);
+  // 诊断：检查第一个进度条的动画计算值
+  setTimeout(() => {
+    const f = document.querySelector(".prog-fill");
+    if (f) {
+      const cs = getComputedStyle(f);
+      probe("anim=" + cs.animationName + " dur=" + cs.animationDuration);
+    } else {
+      probe("no-fill-element");
+    }
+  }, 1200);
 })();

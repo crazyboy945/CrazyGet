@@ -171,6 +171,14 @@ body {
 .prog-fill.done { background: #35c983; }
 .prog-fill.indeterminate {
   width: 30% !important;
+  animation: cg-slide 1.1s ease-in-out infinite alternate;
+}
+@keyframes cg-slide {
+  from { transform: translateX(0); }
+  to { transform: translateX(233%); }
+}
+.prog-fill.indeterminate {
+  width: 30% !important;
   animation: slide 1.1s ease-in-out infinite alternate;
 }
 @keyframes slide { from { margin-left: 0; } to { margin-left: 70%; } }
