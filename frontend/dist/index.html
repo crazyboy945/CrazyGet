@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CrazyGet</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- ===== 工具栏 ===== -->
+  <header class="toolbar">
+    <div class="brand" title="CrazyGet">
+      <svg width="20" height="20" viewBox="0 0 48 48" fill="none">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="48" y2="48">
+          <stop offset="0" stop-color="#18c5d8"/><stop offset="1" stop-color="#2f7bf6"/>
+        </linearGradient></defs>
+        <rect x="2" y="2" width="44" height="44" rx="10" fill="url(#lg)"/>
+        <path d="M24 10v16m0 0l-7-7m7 7l7-7" stroke="#fff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M15 33h10" stroke="#ffb340" stroke-width="3.6" stroke-linecap="round"/>
+        <path d="M15 38h18" stroke="#ff8a3d" stroke-width="3.6" stroke-linecap="round"/>
+      </svg>
+      <span>CrazyGet</span>
+    </div>
+    <button id="tb-add" class="tb-btn primary" title="添加链接 (Ctrl+V 粘贴)" accesskey="a">＋ 添加链接</button>
+    <button id="tb-torrent" class="tb-btn" title="添加种子文件" accesskey="t">种子…</button>
+    <span class="tb-sep"></span>
+    <button id="tb-start" class="tb-btn icon" title="开始选中任务">▶</button>
+    <button id="tb-pause" class="tb-btn icon" title="暂停选中任务">⏸</button>
+    <button id="tb-folder" class="tb-btn icon" title="打开所在文件夹">📁</button>
+    <button id="tb-remove" class="tb-btn icon danger" title="删除选中任务 (Del)">🗑</button>
+    <span class="tb-sep"></span>
+    <button id="tb-startall" class="tb-btn" title="全部开始">▶▶</button>
+    <button id="tb-pauseall" class="tb-btn" title="全部暂停">⏸⏸</button>
+    <button id="tb-clear" class="tb-btn" title="清除已完成任务">清除已完成</button>
+    <div class="flex-spacer"></div>
+    <button id="tb-settings" class="tb-btn" title="设置">⚙ 设置</button>
+  </header>
+
+  <!-- ===== 主区域：左侧过滤栏 + 任务表格 ===== -->
+  <div class="main-area">
+    <aside class="filter-pane">
+      <div class="pane-title">状态</div>
+      <div id="status-filters">
+        <div class="filter-item active" data-filter="all"><span class="fi-label">全部</span><span class="fi-count" id="c-all">0</span></div>
+        <div class="filter-item" data-filter="downloading"><span class="fi-label">下载中</span><span class="fi-count" id="c-downloading">0</span></div>
+        <div class="filter-item" data-filter="waiting"><span class="fi-label">等待中</span><span class="fi-count" id="c-waiting">0</span></div>
+        <div class="filter-item" data-filter="paused"><span class="fi-label">已暂停</span><span class="fi-count" id="c-paused">0</span></div>
+        <div class="filter-item" data-filter="completed"><span class="fi-label">已完成</span><span class="fi-count" id="c-completed">0</span></div>
+        <div class="filter-item" data-filter="error"><span class="fi-label">失败</span><span class="fi-count" id="c-error">0</span></div>
+      </div>
+      <div class="pane-title">类型</div>
+      <div id="kind-filters">
+        <div class="filter-item active" data-kind="all"><span class="fi-label">全部类型</span></div>
+        <div class="filter-item" data-kind="http"><span class="fi-label">HTTP(S)</span></div>
+        <div class="filter-item" data-kind="ftp"><span class="fi-label">FTP(S)</span></div>
+        <div class="filter-item" data-kind="bt"><span class="fi-label">BT / 磁力</span></div>
+      </div>
+    </aside>
+
+    <div class="table-wrap" id="table-wrap">
+      <table id="task-table">
+        <colgroup>
+          <col style="width:auto"><col style="width:150px"><col style="width:170px">
+          <col style="width:130px"><col style="width:105px"><col style="width:105px">
+          <col style="width:110px">
+        </colgroup>
+        <thead>
+          <tr>
+            <th data-sort="name">名称 <span class="sort-ind"></span></th>
+            <th data-sort="size">大小 <span class="sort-ind"></span></th>
+            <th data-sort="progress">进度 <span class="sort-ind"></span></th>
+            <th data-sort="status">状态 <span class="sort-ind"></span></th>
+            <th data-sort="speed">速度 <span class="sort-ind"></span></th>
+            <th data-sort="eta">剩余时间 <span class="sort-ind"></span></th>
+            <th data-sort="createdAt">添加时间 <span class="sort-ind"></span></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div id="empty" class="empty hidden">
+        <div class="empty-icon">⬇</div>
+        <div class="empty-title">还没有下载任务</div>
+        <div class="empty-sub">点击「＋ 添加链接」或直接 Ctrl+V 粘贴链接 · 多线程加速 · 断点续传 · BT/磁力</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 信息面板 ===== -->
+  <div class="info-pane" id="info-pane">
+    <div class="info-tabs">
+      <button class="info-tab active" data-tab="overview">概览</button>
+      <button class="info-tab" data-tab="segments">分段</button>
+      <button class="info-tab" data-tab="link">链接</button>
+      <div class="flex-spacer"></div>
+      <button id="info-toggle" class="info-toggle" title="收起/展开">▾</button>
+    </div>
+    <div class="info-body" id="info-body"><div class="info-placeholder">选中一个任务查看详情</div></div>
+  </div>
+
+  <!-- ===== 状态栏 ===== -->
+  <footer class="statusbar">
+    <span class="st-speed" id="st-speed">↓ 0 B/s</span>
+    <span class="st-sep"></span>
+    <span id="st-count">任务 0</span>
+    <span class="st-sep"></span>
+    <span id="st-dht" class="st-dim">DHT: —</span>
+    <div class="flex-spacer"></div>
+    <span id="st-sel" class="st-dim"></span>
+  </footer>
+
+  <!-- 剪贴板检测提示 -->
+  <div id="clip-toast" class="clip-toast hidden">
+    <div class="clip-head">📋 检测到下载链接</div>
+    <div class="clip-text" id="clip-text"></div>
+    <div class="clip-actions">
+      <button class="btn primary" id="clip-download">立即下载</button>
+      <button class="btn" id="clip-ignore">忽略</button>
+    </div>
+  </div>
+
+  <!-- 右键菜单 -->
+  <div id="ctx-menu" class="ctx-menu hidden">
+    <div class="ctx-item" data-act="start">▶　开始 / 继续</div>
+    <div class="ctx-item" data-act="pause">⏸　暂停</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item" data-act="folder">📁　打开所在文件夹</div>
+    <div class="ctx-item" data-act="copy">📋　复制下载链接</div>
+    <div class="ctx-sep"></div>
+    <div class="ctx-item danger" data-act="remove">🗑　删除任务</div>
+  </div>
+
+  <!-- ===== 新建任务 ===== -->
+  <dialog id="dlg-new">
+    <form method="dialog" class="dlg-body">
+      <h3>新建下载任务</h3>
+      <label>下载链接（每行一个，支持 http/ftp/磁力）
+        <textarea id="new-url" rows="3" spellcheck="false" placeholder="https://… / ftp://… / magnet:?xt=…"></textarea>
+      </label>
+      <label>保存到
+        <div class="row">
+          <input id="new-dir" spellcheck="false">
+          <button type="button" class="btn" id="new-browse">浏览…</button>
+        </div>
+      </label>
+      <div class="row2">
+        <label>线程数
+          <select id="new-threads">
+            <option>1</option><option>3</option><option>5</option>
+            <option selected>8</option><option>16</option><option>32</option>
+          </select>
+        </label>
+        <label class="dlg-hint-label">
+          <span class="hint">本地 .torrent 文件请用工具栏「种子…」按钮添加</span>
+        </label>
+      </div>
+      <div class="dlg-actions">
+        <button type="button" class="btn" id="new-cancel">取消</button>
+        <button type="submit" class="btn primary" id="new-ok">开始下载</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ===== 设置 ===== -->
+  <dialog id="dlg-settings">
+    <form method="dialog" class="dlg-body">
+      <h3>设置</h3>
+      <label>默认保存目录
+        <div class="row">
+          <input id="set-dir" spellcheck="false">
+          <button type="button" class="btn" id="set-browse">浏览…</button>
+        </div>
+      </label>
+      <div class="row2">
+        <label>同时下载任务数
+          <select id="set-conc">
+            <option>1</option><option>2</option><option>3</option>
+            <option>4</option><option>5</option><option>6</option><option>8</option>
+          </select>
+        </label>
+        <label>每任务线程数
+          <select id="set-threads">
+            <option>1</option><option>3</option><option>5</option><option>8</option>
+            <option>16</option><option>32</option>
+          </select>
+        </label>
+      </div>
+      <div class="row2">
+        <label>BT 下载限速 (KB/s)
+          <input id="set-dl" type="number" min="0" step="64" placeholder="0 = 不限速">
+        </label>
+        <label>BT 上传限速 (KB/s)
+          <input id="set-ul" type="number" min="0" step="64" placeholder="0 = 不限速">
+        </label>
+      </div>
+      <label>外观
+        <select id="set-theme"><option value="dark">深色</option><option value="light">浅色</option></select>
+      </label>
+      <label class="check-row"><input type="checkbox" id="set-clip"> 监听剪贴板：发现下载链接时提示下载</label>
+      <p class="hint">BT 限速单位 KB/s，0 表示不限速；BT 限速在重启程序后生效。</p>
+      <div class="dlg-actions">
+        <button type="button" class="btn" id="set-cancel">取消</button>
+        <button type="submit" class="btn primary" id="set-ok">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    // 内联错误钩子（先于 main.js 注册，可捕获其加载/解析错误并显示在状态栏）
+    (function () {
+      function showErr(msg) {
+        var el = document.getElementById("st-dht");
+        if (el) {
+          el.textContent = "⚠ " + msg;
+          el.dataset.err = "1";
+        }
+      }
+      window.addEventListener("error", function (e) {
+        showErr("JS " + (e.message || e.type) + " @" + String(e.filename || "").split("/").pop() + ":" + (e.lineno || "?"));
+      });
+      window.addEventListener("unhandledrejection", function (e) {
+        var r = e.reason;
+        showErr("调用错误: " + (r && r.message ? r.message : String(r)));
+      });
+    })();
+  </script>
+  <script src="main.js" onerror="document.getElementById('st-dht').textContent='⚠ 前端脚本加载失败'"></script>
+</body>
+</html>
